@@ -21,10 +21,24 @@ let expressions_belonging_to_structure_item si_name =
                       | Pexp_ident longident ->
                           let strings = flatten longident.txt in
                           let one_string_to_rule_them_all = BatString.concat "." strings in
-                          let () = log "applying" in
-                          let () = log one_string_to_rule_them_all in
-                          expr
-                      | _ -> let () = log "apply but no Pexp_ident\n" in expr
+                          let first_char = BatList.hd @@ BatString.to_list one_string_to_rule_them_all in
+                          let () =
+                            if BatChar.is_uppercase first_char then
+                              log @@ Printf.sprintf "%s -> %s\n" si_name one_string_to_rule_them_all
+                          in
+                          default_mapper.expr mapper expr
+                      | _ -> default_mapper.expr mapper expr
+                  end
+            | {pexp_desc =
+                Pexp_send (sub_exp, fun_name )} ->
+                  begin 
+                    match sub_exp.pexp_desc with
+                      | Pexp_ident longident ->
+                          let strings = flatten longident.txt in
+                          let one_string_to_rule_them_all = BatString.concat "." strings in
+                          let () = log @@ Printf.sprintf "%s -> %s\n" one_string_to_rule_them_all fun_name in
+                          default_mapper.expr mapper expr
+                      | _ -> default_mapper.expr mapper expr
                   end
             | x -> default_mapper.expr mapper x
     }
@@ -32,7 +46,7 @@ let expressions_belonging_to_structure_item si_name =
 let handle_patterns value_bindings =
   List.fold_left (fun acc binding ->
       match binding.pvb_pat.ppat_desc with
-        | Ppat_var {txt=label;loc}  -> log (Printf.sprintf "label is : %s\n" label); Some label
+        | Ppat_var {txt=label;loc}  -> Some label
         | _ -> acc
     ) None value_bindings
 

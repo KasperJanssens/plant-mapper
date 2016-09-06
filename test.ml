@@ -6,4 +6,4 @@ module Koekoek = struct
   let attribuut = "gans"  
 end
 
-let functie_buiten_module _f = "adelaar"
+let functie_buiten_module f = let _ = Koekoek.functie f in Koekoek.attribuut
