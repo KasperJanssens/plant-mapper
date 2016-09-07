@@ -3,8 +3,20 @@ open Ast_helper
 open Asttypes
 open Parsetree
 open Longident
+open Location
+open Lexing
 
 let file_name = "plantDump"
+
+let position_to_string pos =
+  Printf.sprintf "file_name : %s, lnum : %d, bol: %d, cnum: %d" pos.pos_fname pos.pos_lnum pos.pos_bol pos.pos_cnum
+
+let location_to_string location = 
+  let pos_start = position_to_string location.loc_start in
+  let pos_end =  position_to_string location.loc_end in
+  let ghost = location.loc_ghost in
+  Printf.sprintf "Pos_start: '%s', Pos_end:'%s', ghost: %b" pos_start pos_end ghost
+  
 
 let log payload =
   BatFile.with_file_out ~mode:[`append;`create] file_name (
@@ -46,9 +58,10 @@ let expressions_belonging_to_structure_item si_name =
 let handle_patterns value_bindings =
   List.fold_left (fun acc binding ->
       match binding.pvb_pat.ppat_desc with
-        | Ppat_var {txt=label;loc}  -> Some label
+        | Ppat_var {txt=label;loc}  -> log @@ location_to_string loc ; Some label
         | _ -> acc
     ) None value_bindings
+
 
 let plant_mapper argv =
   (* Our getenv_mapper only overrides the handling of expressions in the default mapper. *)
@@ -58,7 +71,9 @@ let plant_mapper argv =
       | { pstr_desc = (Pstr_value (flag, bindings)); pstr_loc} ->
              let si_name_opt = handle_patterns bindings in
              let si_name = BatOption.get si_name_opt in
-             default_mapper.structure_item (expressions_belonging_to_structure_item si_name) structure_item
+             let () = log @@ location_to_string pstr_loc in
+             let full_name = Printf.sprintf ".%s" si_name in
+             default_mapper.structure_item (expressions_belonging_to_structure_item full_name) structure_item
       (* Delegate to the default mapper. *)
       | x -> default_mapper.structure_item mapper x;
   }
