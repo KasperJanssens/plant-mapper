@@ -1,0 +1,15 @@
+opam-version: "1.2"
+name: "ppx_plant_mapper"
+version: "~unknown"
+maintainer: "Kasper Janssens <kasper.janssens.android@gmail.com>"
+authors: "Kasper Janssens <kasper.janssens.android@gmail.com>"
+homepage: "http://www.google.com"
+build: [
+  ["./configure" "--prefix=%{prefix}%"]
+  [make]
+]
+install: [make "install"]
+remove: ["ocamlfind" "remove" "ppx_plant_mapper"]
+depends: [
+  "ocamlfind" {build}
+]

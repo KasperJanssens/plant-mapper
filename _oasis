@@ -1,0 +1,19 @@
+OASISFormat:  0.4
+Name:         ppx_plant_mapper
+Version:      1.0
+Synopsis:     A -ppx extension to do stuff with plan
+Authors:      Peter Zotov <whitequark@whitequark.org>
+License:      MIT
+Plugins:      META (0.4), DevFiles (0.4)
+BuildTools:   ocamlbuild
+OCamlVersion: >= 4.02
+FilesAB:      lib/META.ab
+
+PreInstallCommand:   $ocamlfind install ppx_plant_mapper lib/META
+PreUninstallCommand: $ocamlfind remove ppx_plant_mapper
+
+Executable ppx_plant_mapper
+  Path:             lib
+  BuildDepends:     compiler-libs.common, ppx_tools, batteries
+  MainIs:           ppx_plant_mapper.ml
+  CompiledObject:   best
