@@ -6,8 +6,6 @@ open Longident
 open Location
 open Lexing
 
-let file_name = "plantDump"
-
 let position_to_string pos =
   let (name, l, r) = Location.get_pos_info pos in 
   Printf.sprintf "file_name : %s, pos : %d, %d\n" name l r 
@@ -17,12 +15,19 @@ let location_to_string location =
   let pos_end =  position_to_string location.loc_end in
   let ghost = location.loc_ghost in
   Printf.sprintf "Pos_start: '%s', Pos_end:'%s', ghost: %b" pos_start pos_end ghost
+
+let remove_ml_extension file_name =
+  let l = BatString.length file_name in
+  BatString.sub file_name 0 (l - 3)
   
-let log payload =
-  BatFile.with_file_out ~mode:[`append;`create] file_name (
+let log file_name payload =
+  let plant_name = Printf.sprintf "%s.puml" @@ remove_ml_extension file_name in
+  BatFile.with_file_out ~mode:[`append;`create] plant_name (
     fun output -> BatIO.write_string output payload)
 
-let expressions_belonging_to_structure_item si_name =
+
+let expressions_belonging_to_structure_item file_name si_name =
+    let module_name = remove_ml_extension @@ BatString.capitalize file_name in
     {default_mapper with
        expr = fun mapper expr ->
           match expr with
@@ -32,12 +37,11 @@ let expressions_belonging_to_structure_item si_name =
                     match pexp_ident.pexp_desc with
                       | Pexp_ident longident ->
                           let strings = flatten longident.txt in
-	                  let () = log @@ location_to_string longident.loc in
                           let one_string_to_rule_them_all = BatString.concat "." strings in
                           let first_char = BatList.hd @@ BatString.to_list one_string_to_rule_them_all in
                           let () =
                             if BatChar.is_uppercase first_char then
-                              log @@ Printf.sprintf "%s -> %s\n" si_name one_string_to_rule_them_all
+                              log file_name @@ Printf.sprintf "%s.%s -> %s\n" module_name si_name one_string_to_rule_them_all
                           in
                           default_mapper.expr mapper expr
                       | _ -> default_mapper.expr mapper expr
@@ -49,7 +53,7 @@ let expressions_belonging_to_structure_item si_name =
                       | Pexp_ident longident ->
                           let strings = flatten longident.txt in
                           let one_string_to_rule_them_all = BatString.concat "." strings in
-                          let () = log @@ Printf.sprintf "%s -> %s\n" one_string_to_rule_them_all fun_name in
+                          let () = log file_name @@ Printf.sprintf "%s.%s -> %s\n" module_name one_string_to_rule_them_all fun_name in
                           default_mapper.expr mapper expr
                       | _ -> default_mapper.expr mapper expr
                   end
@@ -65,9 +69,6 @@ let handle_patterns value_bindings =
 
 
 let plant_mapper argv =
-  let a = Sys.argv in
-  let s = BatString.concat ";;" @@ Array.to_list  a in
-  let () = log s in
   (* Our getenv_mapper only overrides the handling of expressions in the default mapper. *)
   { default_mapper with
     structure_item = fun mapper structure_item ->
@@ -75,12 +76,9 @@ let plant_mapper argv =
       | { pstr_desc = (Pstr_value (flag, bindings)); pstr_loc} ->
              let si_name_opt = handle_patterns bindings in
              let si_name = BatOption.get si_name_opt in
-             let full_name = Printf.sprintf ".%s" si_name in
-             default_mapper.structure_item (expressions_belonging_to_structure_item full_name) structure_item
+             let file_name =  pstr_loc.loc_start.pos_fname in
+             default_mapper.structure_item (expressions_belonging_to_structure_item file_name si_name) structure_item
       (* Delegate to the default mapper. *)
-      | {pstr_desc = Pstr_module module_binding } ->
-        let () = log @@ location_to_string module_binding.pmb_loc in
-        default_mapper.structure_item mapper structure_item;
       | x -> default_mapper.structure_item mapper x;
   }
 
