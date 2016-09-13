@@ -1,7 +1,7 @@
 OASISFormat:  0.4
 Name:         ppx_plant_mapper
 Version:      1.0
-Synopsis:     A -ppx extension to do stuff with plan
+Synopsis:     A -ppx extension to do stuff with plant
 Authors:      Peter Zotov <whitequark@whitequark.org>
 License:      MIT
 Plugins:      META (0.4), DevFiles (0.4)
@@ -14,6 +14,12 @@ PreUninstallCommand: $ocamlfind remove ppx_plant_mapper
 
 Executable ppx_plant_mapper
   Path:             lib
-  BuildDepends:     compiler-libs.common, ppx_tools, batteries
+  BuildDepends:     compiler-libs.common, ppx_tools, batteries, sexplib, ppx_sexp_conv
   MainIs:           ppx_plant_mapper.ml
+  CompiledObject:   best
+
+Executable plant_collector
+  Path:             lib
+  BuildDepends:     ppx_tools, batteries, sexplib, ppx_sexp_conv
+  MainIs:           plant_collector.ml
   CompiledObject:   best

@@ -1,17 +1,25 @@
 open Longident
 open Asttypes
+open Sexplib.Std
+open Sexplib.Sexp
+
+type function_call = {
+  module_names: string list;
+  function_name: string;
+} [@@deriving sexp]
 
 type t = {
   file: string;
   base_module_name : string;
   module_name: string option;
   function_name: string;
-}
+  function_calls: function_call list;
+} [@@deriving sexp]
 
-type function_call = {
-  module_names: string list;
-  function_name: string;
-}
+
+let string_to_plant t_s =
+  let sexp = of_string t_s in
+  t_of_sexp sexp
 
 let is_call_to_other_module function_call =
   not @@ BatList.is_empty function_call.module_names
@@ -32,7 +40,8 @@ let remove_ml_extension file_name =
 
 let create file module_name function_name =
   let base_module_name = remove_ml_extension @@ BatString.capitalize file in
-  {file;base_module_name;module_name;function_name}
+  let function_calls = [] in
+  {file;base_module_name;module_name;function_name;function_calls}
 
 let create_with_module file module_name function_name =
   create file (Some module_name) function_name
@@ -49,9 +58,19 @@ let function_name t = t.function_name
 let write_to_file file_name payload =
   let plant_name = Printf.sprintf "%s.puml" @@ remove_ml_extension file_name in
   BatFile.with_file_out ~mode:[`append;`create] plant_name (
-    fun output -> BatIO.write_string output payload)
+    fun output -> BatIO.write_line output payload)
 
-let to_string plant_model function_call =
+let plant_to_string t =
+  let sexp = sexp_of_t t in
+  to_string sexp
+
+let write_out plant_model =
+  let file_name = plant_model.file in
+  let sexp = sexp_of_t plant_model in
+  let s = Sexplib.Sexp.to_string sexp in
+  write_to_file file_name s
+
+(*let to_string plant_model function_call =
   let full_module_name =
     BatOption.map_default
       (fun submodule -> Printf.sprintf "%s.%s" plant_model.base_module_name submodule)
@@ -59,10 +78,13 @@ let to_string plant_model function_call =
       plant_model.module_name
   in
   let function_call_s = function_call_to_string function_call in
-  Printf.sprintf "%s.%s -> %s\n" full_module_name plant_model.function_name function_call_s
+  Printf.sprintf "%s.%s -> %s\n" full_module_name plant_model.function_name function_call_s*)
 
-let log plant_model longident =
+let add_function_call plant_model longident =
   let function_call = create_function_call longident in
   if is_call_to_other_module function_call then
-    write_to_file plant_model.file @@ to_string plant_model function_call
+    let current_calls = plant_model.function_calls in
+    {plant_model with function_calls = (BatList.append current_calls [function_call]) }
+  else
+    plant_model
 
