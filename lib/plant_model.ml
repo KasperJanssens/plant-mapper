@@ -8,6 +8,9 @@ type function_call = {
   function_name: string;
 } [@@deriving sexp]
 
+let called_function_name function_call =
+  BatString.concat "." @@ BatList.append function_call.module_names [function_call.function_name]
+
 type t = {
   file: string;
   base_module_name : string;
@@ -16,6 +19,20 @@ type t = {
   function_calls: function_call list;
 } [@@deriving sexp]
 
+let originating_function_name t =
+  match t.module_name with
+  | Some submodule -> Printf.sprintf "%s.%s.%s"
+                        t.base_module_name
+                        submodule
+                        t.function_name
+  | None -> Printf.sprintf "%s.%s"
+              t.base_module_name
+              t.function_name
+
+let originating_function_call t =
+  let module_names = BatList.append [t.base_module_name] (BatOption.map_default (BatList.make 1) [] t.module_name) in
+  let function_name = t.function_name in
+  {module_names; function_name}
 
 let string_to_plant t_s =
   let sexp = of_string t_s in
@@ -38,8 +55,12 @@ let remove_ml_extension file_name =
   let l = BatString.length file_name in
   BatString.sub file_name 0 (l - 3)
 
+let remove_path file_name =
+  let path = BatPathGen.OfString.of_string file_name in
+  BatPathGen.OfString.name path
+
 let create file module_name function_name =
-  let base_module_name = remove_ml_extension @@ BatString.capitalize file in
+  let base_module_name = BatString.capitalize @@ remove_path @@ remove_ml_extension file in
   let function_calls = [] in
   {file;base_module_name;module_name;function_name;function_calls}
 
@@ -70,21 +91,12 @@ let write_out plant_model =
   let s = Sexplib.Sexp.to_string sexp in
   write_to_file file_name s
 
-(*let to_string plant_model function_call =
-  let full_module_name =
-    BatOption.map_default
-      (fun submodule -> Printf.sprintf "%s.%s" plant_model.base_module_name submodule)
-      plant_model.base_module_name
-      plant_model.module_name
-  in
-  let function_call_s = function_call_to_string function_call in
-  Printf.sprintf "%s.%s -> %s\n" full_module_name plant_model.function_name function_call_s*)
-
 let add_function_call plant_model longident =
   let function_call = create_function_call longident in
   if is_call_to_other_module function_call then
     let current_calls = plant_model.function_calls in
-    {plant_model with function_calls = (BatList.append current_calls [function_call]) }
+    (*TODO for some strange reason the order of encountering the expressions is reversed, seemingly *)
+    {plant_model with function_calls = (BatList.cons function_call current_calls) }
   else
     plant_model
 
