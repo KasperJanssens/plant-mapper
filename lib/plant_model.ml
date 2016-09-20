@@ -8,6 +8,12 @@ type function_call = {
   function_name: string;
 } [@@deriving sexp]
 
+let full_module_name function_call =
+  BatString.concat "." function_call.module_names
+
+let to_plant function_call =
+  Printf.sprintf "%s:%s" (full_module_name function_call) function_call.function_name
+
 let called_function_name function_call =
   BatString.concat "." @@ BatList.append function_call.module_names [function_call.function_name]
 
