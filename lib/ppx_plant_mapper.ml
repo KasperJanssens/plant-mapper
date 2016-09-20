@@ -30,7 +30,6 @@ let expressions_belonging_to_structure_item plant_key =
                   begin
                     match pexp_ident.pexp_desc with
                       | Pexp_ident longident ->
-                        let () = Printf.eprintf "DISCOVERED :  '%s' \n" (BatString.concat "." (Longident.flatten longident.txt)) in
                         let plant_model = Hashtbl.find weed_tabel plant_key in
                         let new_plant_model = Plant_model.add_function_call plant_model longident in
                         let () = Hashtbl.replace weed_tabel plant_key new_plant_model in

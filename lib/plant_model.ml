@@ -3,19 +3,48 @@ open Asttypes
 open Sexplib.Std
 open Sexplib.Sexp
 
-type function_call = {
+type remote_call = {
   module_names: string list;
   function_name: string;
 } [@@deriving sexp]
 
+type function_call = Remote of remote_call | Local of string [@@deriving sexp]
+
 let full_module_name function_call =
   BatString.concat "." function_call.module_names
 
-let to_plant function_call =
-  Printf.sprintf "%s:%s" (full_module_name function_call) function_call.function_name
+let next_caller cur_caller function_call =
+  match function_call with
+  | Remote fcall -> full_module_name fcall
+  | Local _ -> cur_caller
 
-let called_function_name function_call =
-  BatString.concat "." @@ BatList.append function_call.module_names [function_call.function_name]
+let to_plant cur_string caller function_call =
+  match function_call with
+  | Remote call ->
+    begin
+    match full_module_name call with
+    | "List"
+    | "BatList"
+    | "BatString"
+    | "Str"
+    | "Printf"
+    | "Hashtbl"
+    | "BatHashtbl"
+    | "BatEnum"
+    | "Lwt"
+    | "Char"
+    | "BatChar"
+    | "Bytes"
+    | "Unix"
+    | "BatUnix"
+    | "Lwt_condition_iter"
+    | "Random"
+    | "BatRandom"
+    | "Utilities.Lwt_logging"
+    | "AmpliList" -> cur_string
+    | module_name -> Printf.sprintf "%s\n%s -> %s:%s" cur_string caller module_name call.function_name
+    end
+  | Local call -> Printf.sprintf "%s\n%s -> %s:%s" cur_string caller caller call
 
 type t = {
   file: string;
@@ -38,11 +67,19 @@ let originating_function_name t =
 let originating_function_call t =
   let module_names = BatList.append [t.base_module_name] (BatOption.map_default (BatList.make 1) [] t.module_name) in
   let function_name = t.function_name in
-  {module_names; function_name}
+  if BatList.is_empty module_names then
+    Local function_name
+  else
+    Remote {module_names; function_name}
 
 let string_to_plant t_s =
   let sexp = of_string t_s in
   t_of_sexp sexp
+
+let to_hash map plant_model =
+  let key =  originating_function_call plant_model in
+  let value = plant_model.function_calls in
+  BatMap.add key value map
 
 let is_call_to_other_module function_call =
   not @@ BatList.is_empty function_call.module_names
@@ -51,7 +88,8 @@ let create_function_call longident =
   let strings = flatten longident.txt in
   let strings_rev = BatList.rev strings in
   match strings_rev with
-    | x::xs -> {module_names=BatList.rev xs;function_name=x}
+    | x::[] -> Local x
+    | x::xs -> Remote {module_names=BatList.rev xs;function_name=x}
     | [] -> raise Not_found
 
 let function_call_to_string function_call =
@@ -99,10 +137,7 @@ let write_out plant_model =
 
 let add_function_call plant_model longident =
   let function_call = create_function_call longident in
-  if is_call_to_other_module function_call then
-    let current_calls = plant_model.function_calls in
-    (*TODO for some strange reason the order of encountering the expressions is reversed, seemingly *)
-    {plant_model with function_calls = (BatList.cons function_call current_calls) }
-  else
-    plant_model
+  let current_calls = plant_model.function_calls in
+  (*TODO for some strange reason the order of encountering the expressions is reversed, seemingly *)
+  {plant_model with function_calls = (BatList.cons function_call current_calls) }
 
