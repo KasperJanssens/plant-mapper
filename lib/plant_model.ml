@@ -3,6 +3,28 @@ open Asttypes
 open Sexplib.Std
 open Sexplib.Sexp
 
+let modules_to_ignore =[
+  "List";
+  "BatList";
+  "BatString";
+  "Str";
+  "Printf";
+  "Hashtbl";
+  "BatHashtbl";
+  "BatEnum";
+  "Lwt";
+  "Char";
+  "BatChar";
+  "Bytes";
+  "Unix";
+  "BatUnix";
+  "Lwt_condition_iter";
+  "Random";
+  "BatRandom";
+  "Utilities.Lwt_logging";
+  "AmpliList";
+  ]
+
 type remote_call = {
   module_names: string list;
   function_name: string;
@@ -18,33 +40,13 @@ let next_caller cur_caller function_call =
   | Remote fcall -> full_module_name fcall
   | Local _ -> cur_caller
 
-let to_plant cur_string caller function_call =
+let to_plant caller function_call =
   match function_call with
   | Remote call ->
-    begin
-    match full_module_name call with
-    | "List"
-    | "BatList"
-    | "BatString"
-    | "Str"
-    | "Printf"
-    | "Hashtbl"
-    | "BatHashtbl"
-    | "BatEnum"
-    | "Lwt"
-    | "Char"
-    | "BatChar"
-    | "Bytes"
-    | "Unix"
-    | "BatUnix"
-    | "Lwt_condition_iter"
-    | "Random"
-    | "BatRandom"
-    | "Utilities.Lwt_logging"
-    | "AmpliList" -> cur_string
-    | module_name -> Printf.sprintf "%s\n%s -> %s:%s" cur_string caller module_name call.function_name
-    end
-  | Local call -> Printf.sprintf "%s\n%s -> %s:%s" cur_string caller caller call
+      let module_name = full_module_name call in
+      Printf.sprintf "%s -> %s:%s" caller module_name call.function_name
+  | Local call ->
+      Printf.sprintf "%s -> %s:%s" caller caller call
 
 type t = {
   file: string;
@@ -84,16 +86,10 @@ let to_hash map plant_model =
 let is_call_to_other_module function_call =
   not @@ BatList.is_empty function_call.module_names
 
-let create_function_call longident =
-  let strings = flatten longident.txt in
-  let strings_rev = BatList.rev strings in
-  match strings_rev with
-    | x::[] -> Local x
-    | x::xs -> Remote {module_names=BatList.rev xs;function_name=x}
-    | [] -> raise Not_found
-
 let function_call_to_string function_call =
-  BatString.concat "." @@ BatList.append function_call.module_names [function_call.function_name]
+  match function_call with
+  | Remote  function_call -> BatString.concat "." @@ BatList.append function_call.module_names [function_call.function_name]
+  | Local function_name -> BatString.concat "." ["LOCAL";function_name]
 
 let remove_ml_extension file_name =
   let l = BatString.length file_name in
@@ -135,9 +131,30 @@ let write_out plant_model =
   let s = Sexplib.Sexp.to_string sexp in
   write_to_file file_name s
 
+let create_function_call longident =
+  let strings = flatten longident.txt in
+  let strings_rev = BatList.rev strings in
+  match strings_rev with
+    | x::[] -> Local x
+    | x::xs -> Remote {module_names=BatList.rev xs;function_name=x}
+    | [] -> raise Not_found
+
+let is_call_to_ignore_module function_call = 
+  match function_call with
+  | Remote call ->
+      BatList.mem (BatString.concat "." call.module_names) modules_to_ignore
+  | Local _ -> false
+
 let add_function_call plant_model longident =
   let function_call = create_function_call longident in
+  let call = match function_call with
+    | Remote _ as remote -> remote
+    | Local call -> Remote {module_names=[plant_model.base_module_name];function_name=call}
+  in
   let current_calls = plant_model.function_calls in
   (*TODO for some strange reason the order of encountering the expressions is reversed, seemingly *)
-  {plant_model with function_calls = (BatList.cons function_call current_calls) }
+  if is_call_to_ignore_module call then
+    plant_model
+  else
+    {plant_model with function_calls = (BatList.cons call current_calls) }
 
