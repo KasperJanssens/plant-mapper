@@ -16,8 +16,22 @@ let main =
       []
       all_files
   in
+  let dependency_files = BatArray.fold_left
+      (fun acc elem ->
+         if BatString.ends_with elem "depends" then
+           BatList.append acc [elem]
+         else
+           acc
+      )
+      []
+      all_files
+  in
+  let dependencies = BatList.map (Dependencies.create_dep_from_file dir) dependency_files in
+  let dep_analysis = BatList.fold_left Dependencies. process Dependencies.empty_internal dependencies in
+  let top_levels = dep_analysis.Dependencies.possible_roots in
+  let top_levels_string = BatString.concat ";\n" @@ BatList.sort BatString.compare top_levels in
+  let () = Printf.eprintf "Top levels are : %s\n" top_levels_string in
   let plants = BatList.concat @@ BatList.map (fun puml_file ->
-      let () = Printf.eprintf "Handling file : '%s'\n" puml_file in
       let strings_enum = BatFile.lines_of @@ Printf.sprintf "%s/%s" dir puml_file in
       BatEnum.fold (fun acc t_s ->
           let plant = Plant_model.string_to_plant t_s in
